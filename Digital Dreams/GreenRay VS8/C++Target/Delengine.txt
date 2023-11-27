@@ -1,0 +1,227 @@
+{*******************************************************************************
+// It's Unofficial Version Of The GreenRay Engine v.1.0.0.7
+// Uncompilation D6 (Selenium) Version From D3DEngine.h
+// It's The GreenRay D3DEngine File.
+// Made Specially For Implementing 3DEngine Parameters.
+// Date Creation: 29 August 2005
+// Last Changing: 7 September 2005
+// Author Rights By: Zie Technology, Zombie Soft And Lucky's Flash Studio Inc.,
+// Licensed By: (C)DDD Digital Dreams Development Inc., 2005
+*******************************************************************************}
+library GREngine;
+uses
+  Windows,
+  SysUtils,
+  Direct3D9,
+  D3DX9,
+  D3DEngine,
+  D3DLight,
+  D3DDebugger,
+  GRVertexes,
+  D3DVertex,GRArchitecture;
+
+{$R *.res}
+
+//------------------------------CreateDirect3D----------------------------------
+//Create GreenRay Engine Direct3D
+function GR_CreateDirect3D(_HWnd: HWND): HResult; export; stdcall;
+begin
+  Result:= E_FAIL;
+
+  //Create GreenRay Direct3D Interface
+  if FAILED(CreateDirect3DInterface(_HWnd)) then begin Result:= E_FAIL; Exit; end;
+
+  Result:= S_OK;
+end; //EndCreateDirect3DFunction
+
+//--------------------------------ReleaseDirect3D-------------------------------
+//Free Resources And Destroy Direct3D
+procedure GR_ReleaseDirect3D(); export; stdcall;
+begin
+  ReleaseDirect3DInterface();
+end; //EndReleaseDirect3DProcedure
+
+//------------------------------SetBackBufferColor------------------------------
+
+procedure GR_SetBackBufferColor(R,G,B: Integer); export; stdcall;
+begin
+  gr_ColR:= R; gr_ColG:= G; gr_ColB:= B;
+end; //EndSetBackBufferColorProcedure
+
+//--------------------------------SetTexture------------------------------------
+
+procedure GR_SetTexture(_Wall,_Floor,_Ceiling: PChar); export; stdcall;
+begin
+  gr_Wall:= _Wall; gr_Floor:= _Floor; gr_Ceiling:= _Ceiling;
+end; //EndSetTextureProcedure
+
+//-------------------------------SetFillMode------------------------------------
+
+procedure GR_SetFillMode(_Mode: Integer); export; stdcall;
+begin
+  //Solid Mode
+  if (_Mode = 1) then begin gr_Direct3DDevice.SetRenderState(D3DRS_FILLMODE,D3DFILL_SOLID);
+  GR_SetBackBufferColor(gr_ColR,gr_ColG,gr_ColB); end;
+
+  //Wireframe Mode
+  if (_Mode = 2) then begin gr_Direct3DDevice.SetRenderState(D3DRS_FILLMODE,D3DFILL_WIREFRAME);
+  GR_SetBackBufferColor(0,0,0); end;
+
+  //Point Mode
+  if (_Mode = 3) then begin gr_Direct3DDevice.SetRenderState(D3DRS_FILLMODE,D3DFILL_POINT);
+  GR_SetBackBufferColor(0,0,0); end;
+end; //EndSetFillModeProcedure
+
+//-----------------------------CreateInputDevices-------------------------------
+
+procedure GR_CreateInputDevices(_HWnd: HWND;_MoveSpeed: Single); export; stdcall;
+begin
+  gr_Camera.SetInputDevices(_HWnd); //Set Input Devices
+  gr_Camera.SetMoveSpeed(_MoveSpeed); //Set Keyboard Move Speed
+end; //EndCreateInputDevicesProcedure
+
+//------------------------------CreateDirect3DMesh------------------------------
+//Direct3D Mesh Initialization
+function _CreateDirect3DMesh(_FileName,_Texture: LPCSTR): HResult; export; stdcall;
+type
+  D3DXMeshMaterials = ^D3DXMeshMaterialsArray;
+  D3DXMeshMaterialsArray = array[0..0] of TD3DXMaterial;
+var
+  pMeshMaterialBuffer: ID3DXBuffer;
+  pMMaterials: D3DXMeshMaterials;
+  I: DWord;
+  _MeshFile,_TexFile: PChar;
+begin
+  Result:= E_FAIL;
+  _MeshFile:= PChar(ExtractFileName(_FileName));
+  _TexFile:= PChar(ExtractFileName(_Texture));
+
+  //Load Mesh From File
+  if FAILED(D3DXLoadMeshFromX(_FileName,D3DXMESH_SYSTEMMEM,
+  gr_Direct3DDevice,nil,@pMeshMaterialBuffer,nil,@pNumMaterials,pMesh)) then begin
+  gr_MeshInfo:= ('Could Not Initialize Mesh '+_MeshFile);
+  gr_MeshState:= D3DXColor(1.0,0.0,0.0,1.0); Result:= E_FAIL; end else begin
+  gr_MeshInfo:= ('Mesh Loaded '+_MeshFile+' OK');
+  gr_MeshState:= D3DXColor(1.0,1.0,1.0,1.0); end;
+  
+  //Extract Mesh Materials
+  pMMaterials:= pMeshMaterialBuffer.GetBufferPointer();
+
+  GetMem(pMeshMaterials,SizeOf(TD3DMaterial9)*pNumMaterials);
+  GetMem(pMeshTextures,SizeOf(IDirect3DTexture9)*pNumMaterials);
+  ZeroMemory(pMeshTextures,SizeOf(IDirect3DTexture9)*pNumMaterials);
+
+  I:= 0;
+  while (I < pNumMaterials) do begin
+  //Copy The Material
+  pMeshMaterials[I]:= pMMaterials[I].MatD3D;
+
+  //Set Around Material Ambient
+  pMeshMaterials[I].Ambient:= pMeshMaterials[I].Diffuse;
+  
+  //Load Texture
+  pMeshTextures[I]:= nil;
+
+  if (pMMaterials[I].pTextureFilename <> nil) and
+  (StrLen(pMMaterials[I].pTextureFilename) > 0) then begin
+
+  if FAILED(D3DXCreateTextureFromFile(gr_Direct3DDevice,_Texture
+  {pMMaterials[I].pTextureFilename},pMeshTextures[I])) then pMeshTextures[I]:= nil;
+
+  end; Inc(I); end;
+
+  if (not FileExists(_Texture)) then begin
+  gr_MeshTexInfo:= ('Could Not Load Mesh Texture '+_TexFile);
+  gr_MeshTexState:= D3DXColor(1.0,0.0,0.0,1.0); end else begin
+  gr_MeshTexInfo:= ('Load Mesh Texture '+_TexFile+' OK');
+  gr_MeshTexState:= D3DXColor(1.0,1.0,1.0,1.0); end;
+
+  //Release Material Buffer
+  pMeshMaterialBuffer:= nil;
+  Result:= S_OK;
+end; //EndCreateDirect3DMeshFunction
+
+//------------------------------DrawD3DMesh-------------------------------------
+//Draw Direct3D Mesh And Paint Create Object
+procedure _DrawD3DMesh();
+var I: DWord;
+begin
+  I:= 0;
+  while(I < pNumMaterials) do begin
+  //Set The Material And Texture
+  gr_Direct3DDevice.SetMaterial(pMeshMaterials[I]);
+  gr_Direct3DDevice.SetTexture(0,pMeshTextures[I]);
+  //Draw The Mesh
+  pMesh.DrawSubset(I); Inc(I); end;
+end; //EndDrawD3DMeshProcedure
+
+//---------------------------RenderingDirect3D----------------------------------
+//Paint Direct3D Scene
+procedure _RenderingDirect3D(); export; stdcall;
+begin
+  if (gr_Direct3DDevice = nil) then Exit;
+
+  //Update GreenRay Camera
+  if (gr_InputDevicesCreated) then begin
+  gr_Direct3DDevice.TestCooperativeLevel();
+  gr_Camera.UpdateCamera(); end;
+
+  //Clear Back Buffer
+  gr_Direct3DDevice.Clear(0,nil,D3DCLEAR_TARGET or
+  D3DCLEAR_ZBUFFER,D3DCOLOR_XRGB(gr_ColR,gr_ColG,gr_ColB),1.0,0);
+
+  //Begin Scene
+  if (SUCCEEDED(gr_Direct3DDevice.BeginScene)) then begin
+  //Here Code For SceneInit
+
+  //Set Light
+  _CLSID_SetD3DLight();
+
+  //View Matricies
+  RenderWorldMatrix();
+
+  //Draw Mesh
+  _DrawD3DMesh();
+
+  //Draw Primitive
+  RenderWorldMap();
+  _DrawD3DPrimitiveA();
+
+  //DrawVB();
+
+  //FPS Out
+  RenderOutputFPS();
+
+  //Cout Debugger Information
+  DisplayDebugInfo();
+
+  gr_Direct3DDevice.EndScene(); end;
+
+  //Present The Backbuffer Contents To The Display
+  gr_Direct3DDevice.Present(nil,nil,0,nil);
+end; //EndRenderingDirect3DProcedure
+
+//------------------------------------------------------------------------------
+
+exports
+  //GreenRay Direct3D Directives
+  GR_CreateDirect3D,
+  GR_ReleaseDirect3D,
+
+  //DirectInputDirectives
+  GR_CreateInputDevices,
+
+  //Set FillMode Directives
+  GR_SetFillMode,
+  
+  _CreateDirect3DMesh,
+
+  //BackGroundColor Color Directives
+  GR_SetBackBufferColor,
+
+  //Set Texture Directives
+  GR_SetTexture,
+
+  _RenderingDirect3D;
+begin
+end.

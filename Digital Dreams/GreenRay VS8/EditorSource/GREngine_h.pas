@@ -1,0 +1,226 @@
+{*******************************************************************************
+// It's Unofficial Version Of The GreenRay Editor v.1.0.0.1
+// GREngine_h.pas
+// It's An GreenRay Editor Application For Manipulations Under Base Engine.
+// Made Specially For Implement Visual Engine Parameters.
+// Date Creation: 29 August 2005
+// Last Changing: 6 January 2006
+// Author Rights By: Zie Technology, Zombie Soft And Lucky's Flash Studio Inc.,
+// Licensed By: (C)DDD Digital Dreams Development Inc., 2006
+*******************************************************************************}
+unit GREngine_h;
+interface uses WinTypes,Variants,SysUtils,StdCtrls,ComCtrls;
+
+const _GREngine = 'GREngine.dll';
+
+//------------------------------------------------------------------------------
+//CreateInterface Directives
+function CreateDirect3DInterface(_HWnd: HWND): HResult; cdecl; external _GREngine;
+procedure RenderingDirect3D(); cdecl; external _GREngine;
+procedure ReleaseDirect3D(); cdecl; external _GREngine;
+//Change Backbuffer Color Directives
+procedure SetBackbufferColor(R,G,B: Integer); cdecl; external _GREngine;
+//Set FillMode Directives
+procedure SetFillMode(_Mode: Integer); cdecl; external _GREngine;
+//Camera..
+procedure GR_CreateCamera(_HWnd: HWND); cdecl; external _GREngine;
+procedure GR_ConnectToCamera(m_bConnect,m_bNoClip: Bool); cdecl; external _GREngine;
+procedure GR_SetCameraSpeed(_MoveSpeed: Single); cdecl; external _GREngine;
+//Debug Console..
+procedure SetDebugConsole(); cdecl; external _GREngine;
+//Set Textures Pathes For Room
+procedure SetTexturePathes(_TexIndex: Integer;_TexBack,_TexLeft,
+_TexFront,_TexRight,_TexFloor,_TexCeiling: LPCWSTR); cdecl; external _GREngine;
+//Set Textures Pathes For SkyBox
+procedure GR_SetSkyBoxTextures(_TexIndex: Integer;_ZNeg,_XPos,
+_ZPos,_XNeg,_YNeg,_YPos: LPCWSTR); cdecl; external _GREngine;
+//Playback Selected Music From Browser
+procedure GR_PlaybackSelectedSound(FileName: LPCWSTR;m_bWave: Bool); cdecl; external _GREngine;
+procedure GR_PlaySound(m_bPlay: Bool); cdecl; external _GREngine;
+//------------------------------------------------------------------------------
+
+function _EncodeToUCS(_Str: string): PWideChar;
+procedure GR_InitializeMyGraphics();
+procedure GR_SetTextureModelToEngine(_TexIndex: Integer);
+procedure GR_SetSkyBoxTexModel(_TexIndex: Integer;_TexPath: string);
+procedure GR_SetTrackingColor(Sender: TObject);
+procedure GR_SetMinColorPosition(Sender: TObject);
+procedure GR_SetMaxColorPosition(Sender: TObject);
+procedure GR_SetFillMode(Sender: TObject);
+
+const
+  //Set FillMode
+  gr_Solid = $000001;
+  gr_Wireframe = $000002;
+  gr_Point = $000003;
+
+var CameraSpeed: string = '0,001';
+    Playing: Bool = True;
+
+implementation uses unEditor;
+
+//------------------------------------------------------------------------------
+// Name: EncodeToUCS()
+// Desc: Represent String Format To LPCWSTR
+//------------------------------------------------------------------------------
+function _EncodeToUCS(_Str: string): PWideChar;
+var _Buffer: LPCWSTR;
+    _Size: Integer;
+begin
+  _Size:= SizeOf(WideChar)*Length(_Str)+1;
+  GetMem(_Buffer,_Size);
+  Result:= StringToWideChar(_Str,_Buffer,_Size); //Recode To UCS
+end; //EndEncodeToUCSFunction
+
+//------------------------------------------------------------------------------
+// Name: GR_SetTextureModelToEngine()
+// Desc:
+//------------------------------------------------------------------------------
+procedure GR_SetTextureModelToEngine(_TexIndex: Integer);
+var _TexPath: string;
+    _StrBack,_StrLeft,_StrFront,_StrRight,_StrFloor,_StrCeiling: string;
+    _TexBack,_TexLeft,_TexFront,_TexRight,_TexFloor,_TexCeiling: PWideChar;
+begin
+  //Set Valid Texture Pathes
+  _TexPath:= (ExtractFilePath(ParamStr(0))+'Textures\Cellar\');
+
+  _StrBack:= (_TexPath+FRM_EDITOR._cboBackWall.Text);
+  _StrLeft:= (_TexPath+FRM_EDITOR._cboLeftWall.Text);
+  _StrFront:= (_TexPath+FRM_EDITOR._cboFrontWall.Text);
+  _StrRight:= (_TexPath+FRM_EDITOR._cboRightWall.Text);
+  _StrFloor:= (_TexPath+FRM_EDITOR._cboFloor.Text);
+  _StrCeiling:= (_TexPath+FRM_EDITOR._cboCeiling.Text);
+
+  //Prepare Texture Model And Encode Path To UCS Format
+  _TexBack:= _EncodeToUCS(_StrBack); //Texture To Back Wall
+  _TexLeft:= _EncodeToUCS(_StrLeft); //Texture To Left Wall
+  _TexFront:= _EncodeToUCS(_StrFront); //Texture To Front Wall
+  _TexRight:= _EncodeToUCS(_StrRight); //Texture To Right Wall
+  _TexFloor:= _EncodeToUCS(_StrFloor); //Texture To Floor
+  _TexCeiling:= _EncodeToUCS(_StrCeiling); //Texture To Ceiling
+
+  //Here It's Parameters Setting Up To Engine
+  SetTexturePathes(_TexIndex,_TexBack,_TexLeft,_TexFront,_TexRight,_TexFloor,_TexCeiling);
+end; //EndSetTextureModelToEngineProcedure
+
+//------------------------------------------------------------------------------
+// Name: GR_SetSkyBoxTexModel()
+// Desc:
+//------------------------------------------------------------------------------
+procedure GR_SetSkyBoxTexModel(_TexIndex: Integer;_TexPath: string);
+var _SkyBoxPath: string;
+    _StrZNeg,_StrXPos,_StrZPos,_StrXNeg,_StrYNeg,_StrYPos: string;
+    _TexZNeg,_TexXPos,_TexZPos,_TexXNeg,_TexYNeg,_TexYPos: PWideChar;
+begin
+  //Set Valid Texture Pathes
+  _SkyBoxPath:= (ExtractFilePath(ParamStr(0))+'Textures\SkyBox\');
+
+  _StrZNeg:= (_SkyBoxPath+_TexPath+'\zneg.png');
+  _StrXPos:= (_SkyBoxPath+_TexPath+'\xpos.png');
+  _StrZPos:= (_SkyBoxPath+_TexPath+'\zpos.png');
+  _StrXNeg:= (_SkyBoxPath+_TexPath+'\xneg.png');
+  _StrYNeg:= (_SkyBoxPath+_TexPath+'\yneg.png');
+  _StrYPos:= (_SkyBoxPath+_TexPath+'\ypos.png');
+
+  //Prepare Texture Model And Encode Path To UCS Format
+  _TexZNeg:= _EncodeToUCS(_StrZNeg); //Texture To Back Wall
+  _TexXPos:= _EncodeToUCS(_StrXPos); //Texture To Left Wall
+  _TexZPos:= _EncodeToUCS(_StrZPos); //Texture To Front Wall
+  _TexXNeg:= _EncodeToUCS(_StrXNeg); //Texture To Right Wall
+  _TexYNeg:= _EncodeToUCS(_StrYNeg); //Texture To Floor
+  _TexYPos:= _EncodeToUCS(_StrYPos); //Texture To Ceiling
+
+  //Here It's Parameters Setting Up To Engine
+  GR_SetSkyBoxTextures(_TexIndex,_TexZNeg,_TexXPos,_TexZPos,_TexXNeg,_TexYNeg,_TexYPos);
+end; //EndSetSkyBoxTexModelProcedure
+
+//------------------------------------------------------------------------------
+// Name: GR_InitializeMyGraphics()
+// Desc:
+//------------------------------------------------------------------------------
+procedure GR_InitializeMyGraphics();
+var I: Integer;
+begin
+  //Now Release Direct3D If It's Startup
+  ReleaseDirect3D();
+
+  with FRM_EDITOR do begin
+
+  //Create General Direct3D Interface For Output On Needed Layer Of Window
+  if (CreateDirect3DInterface(_pnlOutput.Handle) <> NULL) then begin
+
+  //Set Texturing Model Of RoomBox
+  for I:= 0 to 5 do GR_SetTextureModelToEngine(I);
+
+  //Create And Set GreenRay Camera
+  GR_CreateCamera(Handle);
+
+  //If is OK Then Startup Render Timer
+  _tmrRender.Enabled:= True; end else _tmrRender.Enabled:= False;
+  end; //End With
+end; //EndInitializeMyGraphicsProcedure
+
+//----------------------------SetTrackingColor----------------------------------
+
+procedure GR_SetTrackingColor(Sender: TObject);
+var _TrackHandle: TTrackBar;
+    _Value: TLabel;
+begin
+  with FRM_EDITOR do begin
+  if (Sender = _TrackRed) then begin _TrackHandle:= _TrackRed; _Value:= _RValue; end;
+  if (Sender = _TrackGreen) then begin _TrackHandle:= _TrackGreen; _Value:= _GValue; end;
+  if (Sender = _TrackBlue) then begin _TrackHandle:= _TrackBlue; _Value:= _BValue; end;
+
+  _Value.Caption:= IntToStr(_TrackHandle.Position);
+  SetBackbufferColor(StrToInt(_RValue.Caption),StrToInt(_GValue.Caption),
+  StrToInt(_BValue.Caption)); end;
+end; //EndSetTrackingColorProcedure
+
+//---------------------------SetMinColorPosition--------------------------------
+
+procedure GR_SetMinColorPosition(Sender: TObject);
+var _TrackHandle: TTrackBar;
+    _Pos: Integer;
+begin
+  with FRM_EDITOR do begin
+  if (Sender = _btnLeft1) then _TrackHandle:= _TrackRed;
+  if (Sender = _btnLeft2) then _TrackHandle:= _TrackGreen;
+  if (Sender = _btnLeft3) then _TrackHandle:= _TrackBlue; 
+
+  _Pos:= _TrackHandle.Position;
+  if (_Pos = 0) then Exit;
+  Dec(_Pos);
+  _TrackHandle.Position:= _Pos; end;
+end; //EndSetMinColorPositionProcedure
+
+//---------------------------SetMaxColorPosition--------------------------------
+
+procedure GR_SetMaxColorPosition(Sender: TObject);
+var _TrackHandle: TTrackBar;
+    _Pos: Integer;
+begin
+  with FRM_EDITOR do begin
+  if (Sender = _btnRight1) then _TrackHandle:= _TrackRed;
+  if (Sender = _btnRight2) then _TrackHandle:= _TrackGreen;
+  if (Sender = _btnRight3) then _TrackHandle:= _TrackBlue; 
+
+  _Pos:= _TrackHandle.Position;
+  if (_Pos = 255) then Exit;
+  Inc(_Pos);
+  _TrackHandle.Position:= _Pos; end;
+end; //EndSetMaxColorPositionProcedure
+
+//-------------------------------SetFillMode------------------------------------
+
+procedure GR_SetFillMode(Sender: TObject);
+begin
+  with FRM_EDITOR do begin
+  if (Sender = _rbtnSolid) then SetFillMode(gr_Solid);
+  if (Sender = _rbtnWireframe) then SetFillMode(gr_Wireframe);
+  if (Sender = _rbtnPoint) then SetFillMode(gr_Point); end;
+end; //EndSetFillModeProcedure
+
+//------------------------------------------------------------------------------
+
+end.
+ 

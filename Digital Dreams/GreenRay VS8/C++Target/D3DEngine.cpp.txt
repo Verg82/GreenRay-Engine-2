@@ -1,0 +1,415 @@
+/**************************************************************************/ 
+// It's Unofficial Version Of The GreenRay Engine v.1.0.0.3
+// D3DEngine.h
+// It's An GreenRay D3DEngine Header File.
+// Made Specially For Implement 3DEngine Parameters.
+// Date Creation: 29 August 2005
+// Last Changing: 2 September 2005
+// Author Rights By: Zie Technology, Zombie Soft And Lucky's Flash Studio Inc.,
+// Licensed By: (C)DDD Digital Dreams Development Inc., 2005
+/**************************************************************************/
+
+#include <d3d9.h>
+#include <d3dx9.h>
+
+#include <d3dx9core.h>
+#include <d3dx9mesh.h>
+
+#pragma comment(lib,"d3d9.lib");
+#pragma comment(lib,"d3dx9.lib");
+
+#ifdef __cplusplus 
+#define EXPORT extern "C" __declspec(dllexport) 
+#else 
+#define EXPORT __declspec(dllexport) 
+#endif 
+
+#ifdef __cplusplus 
+#define IMPORT extern "C" __declspec(dllimport) 
+#else 
+#define IMPORT __declspec(dllimport) 
+#endif 
+
+EXPORT HRESULT _CreateDirect3D(HWND _HWnd); 
+EXPORT HRESULT _CreateVertexBuffer();
+EXPORT HRESULT _CreateDirect3DMesh(LPCSTR _FileName, LPCSTR _Texture);
+
+EXPORT void _RenderingDirect3D(); 
+EXPORT void _ReleaseDirect3D();
+IMPORT void _SetCameraMode(int X,int Y,int _Distance);
+IMPORT void _BackgroundColorRGB(int R,int G,int B);
+IMPORT void _LoadMeshName(LPCSTR _MeshName,LPCSTR _MeshTexture);
+
+namespace
+{  
+  //Direct 3D Base Interfaces
+  IDirect3D9* pDirect3D = NULL;
+  IDirect3DDevice9* pDirect3DDevice = NULL;
+  IDirect3DVertexBuffer9* pVertexBuffer = NULL;
+  
+  //Load Mesh Directives
+  ID3DXMesh* pMesh = NULL;
+  ID3DXBuffer* pMeshBuffer = NULL;
+  D3DMATERIAL9* pMeshMaterials = NULL;
+  LPDIRECT3DTEXTURE9* pMeshTexture = NULL;
+  DWORD dwNumber;
+  
+  //CameraMode
+  int _SetCameraX = 0;
+  int _SetCameraY = 0;
+  int _CDistance = -20;
+  //Color Selection
+  int _R,_G,_B; 
+  //Mesh Selection
+  LPCSTR _MeshNameA,_MeshTextureA;
+
+  //Create D3D Font Directives
+  LPD3DXFONT pFont = NULL;
+  RECT _Rect;
+  HFONT hFont; 
+}
+
+struct CUSTOMVERTEX
+{
+  FLOAT x,y,z,rhw; //Vertex Coord
+  DWORD _Color; //Vertex Color
+};
+
+#define D3DFVF_CUSTOMVERTEX (D3DFVF_XYZ|D3DFVF_DIFFUSE)
+
+//------------------------------CreateDirect3D------------------------------
+//Direct3D Initialization 
+HRESULT _CreateDirect3D(HWND _HWnd)
+{
+  if (NULL == (pDirect3D = Direct3DCreate9(D3D_SDK_VERSION))) return E_FAIL;
+  
+  D3DDISPLAYMODE Display;
+  if (FAILED(pDirect3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT,&Display))) return E_FAIL;
+
+  D3DPRESENT_PARAMETERS Direct3DParameter;
+  ZeroMemory(&Direct3DParameter,sizeof(Direct3DParameter));
+  //For D3D Init
+  Direct3DParameter.Windowed = TRUE;
+  Direct3DParameter.SwapEffect = D3DSWAPEFFECT_DISCARD;
+  Direct3DParameter.BackBufferFormat = Display.Format;
+  Direct3DParameter.EnableAutoDepthStencil = TRUE;
+  Direct3DParameter.AutoDepthStencilFormat = D3DFMT_D16;  
+  Direct3DParameter.BackBufferCount = 3;
+  //For Mesh Loading
+  /*Direct3DParameter.Windowed = FALSE;
+  Direct3DParameter.SwapEffect = D3DSWAPEFFECT_DISCARD;
+  Direct3DParameter.BackBufferFormat = Display.Format;
+  Direct3DParameter.EnableAutoDepthStencil = TRUE;
+  Direct3DParameter.AutoDepthStencilFormat = D3DFMT_D16;   
+  Direct3DParameter.BackBufferWidth = 1024;
+  Direct3DParameter.BackBufferHeight = 768;
+  Direct3DParameter.BackBufferCount = 3;
+  Direct3DParameter.FullScreen_RefreshRateInHz = Display.RefreshRate; */
+
+  /*Or Another Variance
+  Direct3DParameter.Windowed = FALSE;
+  Direct3DParameter.SwapEffect = D3DSWAPEFFECT_DISCARD;
+  Direct3DParameter.BackBufferWidth = 800;
+  Direct3DParameter.BackBufferHeight = 600;
+  Direct3DParameter.BackBufferFormat = D3DFMT_A8R8G8B8;
+  Direct3DParameter.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+  */
+
+  if (FAILED(pDirect3D->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,_HWnd,
+  D3DCREATE_SOFTWARE_VERTEXPROCESSING,&Direct3DParameter,&pDirect3DDevice))) return E_FAIL;
+
+  //Turn Off the Light And Disable Cull 
+  pDirect3DDevice->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);
+  pDirect3DDevice->SetRenderState(D3DRS_LIGHTING,FALSE);	
+
+  //Set Around Light
+  //pDirect3DDevice->SetRenderState(D3DRS_AMBIENT,0xFFFFFFFF);
+  
+  //Enable Z-Buffer
+  pDirect3DDevice->SetRenderState(D3DRS_ZENABLE,D3DZB_TRUE);
+  //pDirect3DDevice->SetRenderState(D3DRS_BLENDOP,D3DZB_TRUE);
+
+  return S_OK;
+} //EndCreateDirect3DFunction
+
+//-----------------------------CreateVertexBuffer---------------------------
+//Vertex Buffer Initialize
+HRESULT _CreateVertexBuffer()
+{
+  CUSTOMVERTEX _Vertex[] = 
+  {
+	  {1.0f, -1.0f, 1.0f, 0x00000FFF, }, //A
+	  {-1.0f, -1.0f, 1.0f, 0xFF000FFF, }, //B
+	  {-1.0f, 1.0f, 1.0f, 0x00000FFF, }, //C
+
+	  {-1.0f, 1.0f, 1.0f, 0x00000FFF, }, //C
+	  {1.0f, 1.0f, 1.0f, 0xFF000FFF, }, //D
+	  {1.0f, -1.0f, 1.0f, 0x00000FFF, }, //A
+	  //X      Y     Z       Color
+  };
+
+  if (FAILED(pDirect3DDevice->CreateVertexBuffer(6*sizeof(CUSTOMVERTEX),0,
+  D3DFVF_CUSTOMVERTEX,D3DPOOL_DEFAULT,&pVertexBuffer,NULL))) return E_FAIL;
+
+  void* pBufferV;
+  if (FAILED(pVertexBuffer->Lock(0,sizeof(_Vertex),(void**)&pBufferV,0))) return E_FAIL;
+
+  memcpy(pBufferV,_Vertex,sizeof(_Vertex)); //Copy To Memory
+  pVertexBuffer->Unlock(); //Unlock VertexBuffer
+
+  return S_OK;
+} //EndCreateVertexBufferFunction
+
+//------------------------------DrawD3DPrimitive-----------------------------
+
+void _DrawD3DPrimitive()
+{
+  pDirect3DDevice->SetStreamSource(0,pVertexBuffer,0,sizeof(CUSTOMVERTEX));
+  pDirect3DDevice->SetFVF(D3DFVF_CUSTOMVERTEX);
+  pDirect3DDevice->DrawPrimitive(D3DPT_TRIANGLELIST,0,2);
+} //EndDrawD3DPrimitiveProcedure
+
+//---------------------------CreateDirect3DMesh---------------------------
+//Direct3D Mesh Initialization
+HRESULT _CreateDirect3DMesh(LPCSTR _FileName,LPCSTR _Texture)
+{
+  if (FAILED(D3DXLoadMeshFromX(_FileName,D3DXMESH_SYSTEMMEM,
+  pDirect3DDevice,NULL,&pMeshBuffer,NULL,&dwNumber,&pMesh))) return E_FAIL;
+
+
+  D3DXMATERIAL* D3DXMeshMaterials;
+  D3DXMeshMaterials = (D3DXMATERIAL*)pMeshBuffer->GetBufferPointer();
+  
+  pMeshMaterials = new D3DMATERIAL9[dwNumber];
+  pMeshTexture = new LPDIRECT3DTEXTURE9[dwNumber];
+
+  for (DWORD I = 0; I < dwNumber; I++)
+  {
+   //Copy Matherial
+   pMeshMaterials[I] = D3DXMeshMaterials[I].MatD3D;
+   //Set Around Light
+   pMeshMaterials[I].Ambient = pMeshMaterials[I].Diffuse;
+   //Load Texture
+   if (FAILED(D3DXCreateTextureFromFile(pDirect3DDevice,_Texture
+   /*D3DXMeshMaterials[I].pTextureFilename*/,&pMeshTexture[I]))) pMeshTexture[I] = NULL;
+  }
+
+  pMeshBuffer->Release();
+
+  return S_OK;
+} //EndCreateDirect3DMeshFunction
+
+//--------------------------------DrawD3DMesh--------------------------------
+//Draw Direct3D Mesh And Paint Create Object
+void _DrawD3DMesh()
+{
+  for (DWORD I = 0; I < dwNumber; I++)
+  {
+  //Set Material And Texture
+  pDirect3DDevice->SetMaterial(&pMeshMaterials[I]);
+  pDirect3DDevice->SetTexture(0,pMeshTexture[I]);
+  //Paint Mesh
+  pMesh->DrawSubset(I);
+  }
+} //EndDrawD3DMeshProcedure
+
+//--------------------------------DrawD3DText--------------------------------
+//Draw Text On The Screen
+void _DrawD3DText(IDirect3DDevice9* _pDirect3DDevice,HFONT hFont,
+			   char* _Text,int X,int Y,int X1,int Y1,D3DCOLOR _Color)
+{
+  //Create Font
+  HRESULT hr;
+  hFont = CreateFont(30,10,0,0,FW_NORMAL,FALSE,FALSE,0,1,0,0,0,
+  DEFAULT_PITCH|FF_MODERN,"Arial");
+
+  //Rectangle Coordinates
+  _Rect.left = X;
+  _Rect.top = Y;
+  _Rect.right = X1;
+  _Rect.bottom = Y1;
+
+  //Font Initialize
+  hr = D3DXCreateFont(_pDirect3DDevice,hFont,&pFont);
+
+  //begin
+  pFont->Begin();
+
+  //Text Out
+  pFont->DrawText(_Text,-1,&_Rect,0,_Color);
+
+  //end
+  pFont->End();
+
+} //EndDrawD3DTextProcedure
+
+//--------------------------------SetD3DLight--------------------------------
+
+void _SetD3DLight()
+{
+  D3DMATERIAL9 Material; //Material
+  D3DLIGHT9 Light; //Light
+
+  //Set Up Material
+  ZeroMemory(&Material,sizeof(D3DMATERIAL9));
+  Material.Diffuse.r = Material.Ambient.r = 1.0f;
+  Material.Diffuse.g = Material.Ambient.g = 5.0f;
+  Material.Diffuse.b = Material.Ambient.b = 0.0f;
+  Material.Diffuse.a = Material.Ambient.a = 1.0f;
+  pDirect3DDevice->SetMaterial(&Material);
+
+  D3DXVECTOR3 VectorDir;
+  
+  //Set Up Light
+  ZeroMemory(&Light,sizeof(D3DLIGHT9));
+  Light.Type = D3DLIGHT_DIRECTIONAL;
+  Light.Diffuse.r = 1.0f;
+  Light.Diffuse.g = 1.0f;
+  Light.Diffuse.b = 1.0f;
+  //Specular
+  //Light.Specular.r = 0.0f;
+  //Light.Specular.g = 0.0f;
+  //Light.Specular.b = 0.0f;
+  
+  Light.Range = 1000.0f;
+
+  //Set Up Normal
+  VectorDir = D3DXVECTOR3(0.0f,0.0f,1.0f);
+  D3DXVec3Normalize((D3DXVECTOR3*)&Light.Direction,&VectorDir);
+
+  pDirect3DDevice->SetLight(0,&Light);
+  pDirect3DDevice->LightEnable(0,TRUE);
+
+  pDirect3DDevice->SetRenderState(D3DRS_LIGHTING,TRUE);
+  pDirect3DDevice->SetRenderState(D3DRS_AMBIENT,0);
+
+} //EndSetD3DLightProcedure
+
+//--------------------------------WorldMatrix--------------------------------
+//World Matrix, Matrix Transformation, Matrix Projection
+void _WorldMatrix()
+{
+  D3DXMATRIX MatrixWorld; //World Matrix
+  D3DXMATRIX MatrixTransform; //Transformation Matrix
+  D3DXMATRIX MatrixProjection; //Projection Matrix
+   
+  //Rotation Transformation Matrix
+  /*
+  float b = float(GetTickCount()%0xffff)/0xffff*3.141593f*80;
+
+  float cs = (float)cos(b);
+  float sn = (float)sin(b);
+
+  float cs2 = (float)cos(b/2);
+  float sn2 = (float)sin(b/2);
+
+  D3DMATRIX WorldMatrix = {cs*cs2, cs*sn2, sn,0,-sn2,cs2, 0,0,-sn*cs2,-sn*sn2, cs,0,0,0, 0,1,};
+
+  pDirect3DDevice->SetTransform(D3DTS_WORLD,&WorldMatrix); 
+  */
+
+  UINT Time = GetTickCount() % 4000;
+
+  //World Matrix
+  FLOAT Angle = Time*(2.0f*D3DX_PI)/4000.0f;
+  D3DXMatrixRotationY(&MatrixWorld,Angle);
+  pDirect3DDevice->SetTransform(D3DTS_WORLD,&MatrixWorld);
+
+  //Transformation Matrix
+  D3DXMatrixLookAtLH(&MatrixTransform,&D3DXVECTOR3(10.0f,10.0f,_CDistance),
+  &D3DXVECTOR3(_SetCameraX,_SetCameraY,0.0f),&D3DXVECTOR3(0.0f,1.0f,0.0f));
+  pDirect3DDevice->SetTransform(D3DTS_VIEW,&MatrixTransform);
+
+  //Projection Matrix
+  D3DXMatrixPerspectiveFovLH(&MatrixProjection,D3DX_PI/6,1.0f,1.0f,100.0f);
+  pDirect3DDevice->SetTransform(D3DTS_PROJECTION,&MatrixProjection);
+
+} //EndWorldMatrixProcedure
+
+//-------------------------------SetCameraMode------------------------------
+
+void _SetCameraMode(int X,int Y,int _Distance)
+{
+  _SetCameraX = X;
+  _SetCameraY = Y;
+  _CDistance = _Distance; 
+} //EndSetCameraModeProcedure
+
+//-----------------------------BackgroundColorRGB----------------------------
+
+void _BackgroundColorRGB(int R,int G,int B)
+{
+  _R = R;
+  _G = G;
+  _B = B;
+} //EndBackgroundColorRGBProcedure
+
+//--------------------------------LoadMeshName-------------------------------
+
+void _LoadMeshName(LPCSTR _MeshName,LPCSTR _MeshTexture)
+{
+  _MeshNameA = _MeshName;
+  _MeshTextureA = _MeshTexture;
+} //EndLoadMeshNameProcedure
+
+//-----------------------------RenderingDirect3D-----------------------------
+//Paint Direct3D Scene
+void _RenderingDirect3D()
+{
+  if (pDirect3DDevice == NULL) return;
+  
+  //Clear Back Buffer
+  pDirect3DDevice->Clear(0,NULL,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER,D3DCOLOR_XRGB(_R,_G,_B),1.0f,0);
+
+  //Begin Scene
+  pDirect3DDevice->BeginScene();
+  
+  //Here Code For SceneInit
+  
+
+  //Set Light
+  _SetD3DLight();
+  
+  //Matricies
+  _WorldMatrix();
+
+  //Draw Mesh
+  _DrawD3DMesh();
+
+ 
+  //Draw Primitive
+  //_DrawD3DPrimitive();
+  
+  //Text Out
+  //_DrawD3DText(pDirect3DDevice,hFont,"Mesh Loat At:",10,10,500,700,D3DCOLOR_ARGB(250,250,50)); 
+ 
+  pDirect3DDevice->EndScene();
+  pDirect3DDevice->Present(NULL,NULL,NULL,NULL);
+} //EndRenderingDirect3DProcedure
+
+//--------------------------------ReleaseDirect3D----------------------------
+//Free Resources And Destroy Direct3D
+void _ReleaseDirect3D()
+{
+  if (pMeshMaterials != NULL) delete[] pMeshMaterials;
+  if (pMeshTexture)
+  {
+    for (DWORD I = 0; I < dwNumber; I++)
+    {
+	if (pMeshTexture[I]) pMeshTexture[I]->Release();
+	}
+	delete[] pMeshTexture;
+  }
+  //Free Mesh
+  if (pMesh != NULL) pMesh->Release();
+
+  //Free VertexBuffer
+  if (pVertexBuffer != NULL) pVertexBuffer->Release();
+
+  //Free Direct3D
+  if (pDirect3DDevice != NULL) pDirect3DDevice->Release();
+  if (pDirect3D != NULL) pDirect3D->Release();
+
+} //EndReleaseDirect3DProcedure
+
+//----------------------------------------------------------------------------
